@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fileshare — upload</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e4e7ec;
+    --muted: #8b93a1;
+    --accent: #4f8cff;
+    --ok: #34c07c;
+    --err: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  main { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 3rem 1rem;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #dropzone.over { border-color: var(--accent); background: rgba(79, 140, 255, 0.06); color: var(--text); }
+  #dropzone strong { color: var(--text); }
+  .file-info { margin-top: 0.75rem; font-size: 0.9rem; color: var(--text); display: none; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.6rem 1.4rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .progress-wrap { margin-top: 1rem; display: none; }
+  .progress-track {
+    height: 10px;
+    background: var(--bg);
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .progress-bar { height: 100%; width: 0%; background: var(--accent); transition: width .15s linear; }
+  .progress-stats { margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted); display: flex; justify-content: space-between; }
+  .msg { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.9rem; display: none; word-break: break-word; }
+  .msg.err { display: block; background: rgba(229, 83, 75, 0.12); border: 1px solid var(--err); color: #ffb4af; }
+  .msg.ok { display: block; background: rgba(52, 192, 124, 0.1); border: 1px solid var(--ok); color: #9fe8c5; }
+  .share-row { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+  .share-row input { flex: 1; }
+  .share-row button { white-space: nowrap; }
+  #session-list { list-style: none; margin: 0.75rem 0 0; padding: 0; font-size: 0.85rem; }
+  #session-list li { padding: 0.4rem 0; border-bottom: 1px solid var(--border); word-break: break-all; }
+  #session-list li:last-child { border-bottom: none; }
+  #session-list a { color: var(--accent); text-decoration: none; }
+  #session-list a:hover { text-decoration: underline; }
+  .hint { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>fileshare</h1>
+  <p class="sub">Uploads up to 50 GB supported.</p>
+
+  <div class="panel">
+    <label for="key">Upload key (64 characters, from <code>/tmp/FileUploadKeys.txt</code> on the server)</label>
+    <input type="password" id="key" maxlength="64" autocomplete="off" placeholder="paste the upload key">
+    <p class="hint">The key is remembered in this browser (localStorage).</p>
+  </div>
+
+  <div class="panel">
+    <div id="dropzone">
+      <p><strong>Drag &amp; drop a file here</strong></p>
+      <p>or click to choose a file</p>
+      <input type="file" id="file" hidden>
+    </div>
+    <p class="file-info" id="file-info"></p>
+    <div style="margin-top:1rem; text-align:right;">
+      <button id="upload-btn" disabled>Upload</button>
+    </div>
+
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+      <div class="progress-stats">
+        <span id="stat-pct">0%</span>
+        <span id="stat-speed">—</span>
+        <span id="stat-eta">—</span>
+      </div>
+    </div>
+
+    <div class="msg" id="msg"></div>
+
+    <div class="share-row" id="share-row" style="display:none;">
+      <input type="text" id="share-link" readonly>
+      <button id="copy-btn" type="button">Copy</button>
+    </div>
+  </div>
+
+  <div class="panel" id="session-panel" style="display:none;">
+    <label>Uploaded this session</label>
+    <ul id="session-list"></ul>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var keyInput = document.getElementById('key');
+  var fileInput = document.getElementById('file');
+  var dropzone = document.getElementById('dropzone');
+  var fileInfo = document.getElementById('file-info');
+  var uploadBtn = document.getElementById('upload-btn');
+  var progressWrap = document.getElementById('progress-wrap');
+  var progressBar = document.getElementById('progress-bar');
+  var statPct = document.getElementById('stat-pct');
+  var statSpeed = document.getElementById('stat-speed');
+  var statEta = document.getElementById('stat-eta');
+  var msg = document.getElementById('msg');
+  var shareRow = document.getElementById('share-row');
+  var shareLink = document.getElementById('share-link');
+  var copyBtn = document.getElementById('copy-btn');
+  var sessionPanel = document.getElementById('session-panel');
+  var sessionList = document.getElementById('session-list');
+
+  var selectedFile = null;
+  var uploading = false;
+
+  // --- key persistence -----------------------------------------------------
+  try {
+    var saved = localStorage.getItem('fileshare.uploadKey');
+    if (saved) keyInput.value = saved;
+  } catch (e) { /* storage unavailable */ }
+
+  keyInput.addEventListener('input', function () {
+    try { localStorage.setItem('fileshare.uploadKey', keyInput.value); } catch (e) { /* ignore */ }
+    refresh();
+  });
+
+  // --- file selection --------------------------------------------------------
+  dropzone.addEventListener('click', function () { if (!uploading) fileInput.click(); });
+  fileInput.addEventListener('change', function () {
+    if (fileInput.files.length) selectFile(fileInput.files[0]);
+  });
+
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    dropzone.addEventListener(ev, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!uploading) dropzone.classList.add('over');
+    });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    dropzone.addEventListener(ev, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dropzone.classList.remove('over');
+    });
+  });
+  dropzone.addEventListener('drop', function (e) {
+    if (uploading) return;
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if (files && files.length) selectFile(files[0]);
+  });
+
+  function selectFile(f) {
+    selectedFile = f;
+    fileInfo.style.display = 'block';
+    fileInfo.textContent = f.name + ' — ' + humanSize(f.size);
+    clearMsg();
+    refresh();
+  }
+
+  function refresh() {
+    uploadBtn.disabled = uploading || !selectedFile || keyInput.value.trim().length !== 64;
+  }
+
+  // --- helpers ---------------------------------------------------------------
+  function humanSize(bytes) {
+    if (!isFinite(bytes)) return '?';
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = 0;
+    while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+    return bytes.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+  }
+
+  function fmtEta(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return '—';
+    if (seconds < 60) return Math.ceil(seconds) + 's';
+    if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + Math.ceil(seconds % 60) + 's';
+    return Math.floor(seconds / 3600) + 'h ' + Math.floor((seconds % 3600) / 60) + 'm';
+  }
+
+  function showMsg(kind, text) {
+    msg.className = 'msg ' + kind;
+    msg.textContent = text;
+  }
+  function clearMsg() { msg.className = 'msg'; msg.textContent = ''; }
+
+  // --- upload ------------------------------------------------------------------
+  uploadBtn.addEventListener('click', function () {
+    if (!selectedFile || uploading) return;
+    var key = keyInput.value.trim();
+    if (key.length !== 64) { showMsg('err', 'The upload key must be exactly 64 characters.'); return; }
+
+    uploading = true;
+    refresh();
+    clearMsg();
+    shareRow.style.display = 'none';
+    progressWrap.style.display = 'block';
+    progressBar.style.width = '0%';
+    statPct.textContent = '0%';
+    statSpeed.textContent = '—';
+    statEta.textContent = 'ETA —';
+
+    var fd = new FormData();
+    fd.append('file', selectedFile, selectedFile.name);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload');
+    xhr.setRequestHeader('x-upload-key', key);
+    xhr.timeout = 0; // never time out large uploads
+
+    var startTime = Date.now();
+    var lastLoaded = 0;
+    var lastTime = startTime;
+    var smoothedSpeed = 0;
+
+    xhr.upload.onprogress = function (e) {
+      if (!e.lengthComputable) return;
+      var now = Date.now();
+      var dt = (now - lastTime) / 1000;
+      if (dt > 0.2) {
+        var inst = (e.loaded - lastLoaded) / dt; // bytes/sec
+        smoothedSpeed = smoothedSpeed === 0 ? inst : smoothedSpeed * 0.7 + inst * 0.3;
+        lastLoaded = e.loaded;
+        lastTime = now;
+      }
+      var pct = (e.loaded / e.total) * 100;
+      progressBar.style.width = pct.toFixed(1) + '%';
+      statPct.textContent = pct.toFixed(1) + '% (' + humanSize(e.loaded) + ' / ' + humanSize(e.total) + ')';
+      statSpeed.textContent = humanSize(smoothedSpeed) + '/s';
+      var remaining = (e.total - e.loaded) / (smoothedSpeed || 1);
+      statEta.textContent = 'ETA ' + fmtEta(remaining);
+    };
+
+    xhr.onload = function () {
+      uploading = false;
+      refresh();
+      var body = null;
+      try { body = JSON.parse(xhr.responseText); } catch (e) { /* non-JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300 && body && body.id) {
+        progressBar.style.width = '100%';
+        statPct.textContent = '100%';
+        statEta.textContent = 'done';
+        var url = location.origin + body.url;
+        showMsg('ok', 'Upload complete: ' + body.name + ' (' + humanSize(body.size) + ')');
+        shareLink.value = url;
+        shareRow.style.display = 'flex';
+        addSessionItem(body.name, url);
+      } else {
+        showMsg('err', (body && body.error) ? body.error : ('Upload failed (HTTP ' + xhr.status + ')'));
+      }
+    };
+
+    xhr.onerror = function () {
+      uploading = false;
+      refresh();
+      showMsg('err', 'Network error — the upload was interrupted.');
+    };
+
+    xhr.ontimeout = function () {
+      uploading = false;
+      refresh();
+      showMsg('err', 'Upload timed out.');
+    };
+
+    xhr.send(fd);
+  });
+
+  copyBtn.addEventListener('click', function () {
+    shareLink.select();
+    shareLink.setSelectionRange(0, shareLink.value.length);
+    var done = function () {
+      copyBtn.textContent = 'Copied';
+      setTimeout(function () { copyBtn.textContent = 'Copy'; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareLink.value).then(done, function () { document.execCommand('copy'); done(); });
+    } else {
+      document.execCommand('copy');
+      done();
+    }
+  });
+
+  function addSessionItem(name, url) {
+    sessionPanel.style.display = 'block';
+    var li = document.createElement('li');
+    var a = document.createElement('a');
+    a.href = url;
+    a.textContent = name;
+    li.appendChild(a);
+    li.appendChild(document.createTextNode(' — ' + url));
+    sessionList.insertBefore(li, sessionList.firstChild);
+  }
+})();
+</script>
+</body>
+</html>

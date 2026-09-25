@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fileshare — download</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e4e7ec;
+    --muted: #8b93a1;
+    --accent: #4f8cff;
+    --err: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  main { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
+  input[type="text"] {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button, a.button {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.6rem 1.4rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .row { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+  .row input { flex: 1; }
+  .row button { white-space: nowrap; }
+  .msg { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.9rem; display: none; word-break: break-word; }
+  .msg.err { display: block; background: rgba(229, 83, 75, 0.12); border: 1px solid var(--err); color: #ffb4af; }
+  .file-card { display: none; margin-top: 1.25rem; }
+  .file-card table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .file-card td { padding: 0.45rem 0; border-bottom: 1px solid var(--border); }
+  .file-card td:first-child { color: var(--muted); width: 7rem; }
+  .file-card tr:last-child td { border-bottom: none; }
+  .file-card .name { word-break: break-all; }
+  .actions { margin-top: 1rem; text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>fileshare</h1>
+  <p class="sub">Download a shared file.</p>
+
+  <div class="panel">
+    <label for="id-input">Paste a share link or file ID</label>
+    <div class="row">
+      <input type="text" id="id-input" placeholder="https://…/download?id=… or a UUID" autocomplete="off">
+      <button id="lookup-btn" type="button">Look up</button>
+    </div>
+
+    <div class="msg" id="msg"></div>
+
+    <div class="file-card" id="file-card">
+      <table>
+        <tr><td>Name</td><td class="name" id="f-name">—</td></tr>
+        <tr><td>Size</td><td id="f-size">—</td></tr>
+        <tr><td>Uploaded</td><td id="f-date">—</td></tr>
+      </table>
+      <div class="actions">
+        <a class="button" id="download-btn" href="#">Download</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var idInput = document.getElementById('id-input');
+  var lookupBtn = document.getElementById('lookup-btn');
+  var msg = document.getElementById('msg');
+  var fileCard = document.getElementById('file-card');
+  var fName = document.getElementById('f-name');
+  var fSize = document.getElementById('f-size');
+  var fDate = document.getElementById('f-date');
+  var downloadBtn = document.getElementById('download-btn');
+
+  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  // Accept a bare UUID or any string containing "id=<uuid>" (a pasted link).
+  function extractId(raw) {
+    var s = (raw || '').trim();
+    if (!s) return null;
+    if (UUID_RE.test(s)) return s.toLowerCase();
+    try {
+      var u = new URL(s, location.origin);
+      var fromQuery = u.searchParams.get('id');
+      if (fromQuery && UUID_RE.test(fromQuery)) return fromQuery.toLowerCase();
+    } catch (e) { /* not a URL — fall through */ }
+    var m = s.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    return m ? m[0].toLowerCase() : null;
+  }
+
+  function humanSize(bytes) {
+    if (!isFinite(bytes)) return '?';
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = 0;
+    while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+    return bytes.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+  }
+
+  function showError(text) {
+    msg.className = 'msg err';
+    msg.textContent = text;
+    fileCard.style.display = 'none';
+  }
+  function clearMsg() { msg.className = 'msg'; msg.textContent = ''; }
+
+  function lookup(raw) {
+    var id = extractId(raw);
+    if (!id) { showError('That does not look like a valid share link or file ID.'); return; }
+    clearMsg();
+    fileCard.style.display = 'none';
+    lookupBtn.disabled = true;
+    lookupBtn.textContent = 'Looking up…';
+
+    fetch('/api/file/' + encodeURIComponent(id))
+      .then(function (res) {
+        if (res.status === 404) throw { notFound: true };
+        if (!res.ok) throw new Error('Server error (HTTP ' + res.status + ')');
+        return res.json();
+      })
+      .then(function (info) {
+        fName.textContent = info.name;
+        fSize.textContent = humanSize(info.size) + ' (' + info.size.toLocaleString() + ' bytes)';
+        var d = new Date(info.uploadedAt);
+        fDate.textContent = isNaN(d) ? info.uploadedAt : d.toLocaleString();
+        downloadBtn.href = '/api/download/' + encodeURIComponent(info.id);
+        downloadBtn.setAttribute('download', info.name);
+        fileCard.style.display = 'block';
+      })
+      .catch(function (err) {
+        if (err && err.notFound) showError('File not found. The link may be wrong, or the file was removed.');
+        else showError('Could not reach the server. Please try again.');
+      })
+      .finally(function () {
+        lookupBtn.disabled = false;
+        lookupBtn.textContent = 'Look up';
+      });
+  }
+
+  lookupBtn.addEventListener('click', function () { lookup(idInput.value); });
+  idInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') lookup(idInput.value);
+  });
+
+  // Auto-lookup when the page was opened via a share link (?id=<uuid>).
+  var fromUrl = new URLSearchParams(location.search).get('id');
+  if (fromUrl) {
+    idInput.value = location.origin + '/download?id=' + fromUrl;
+    lookup(fromUrl);
+  }
+})();
+</script>
+</body>
+</html>
