@@ -4,83 +4,42 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>fileshare — download</title>
+<link rel="stylesheet" href="/style.css">
 <style>
-  :root {
-    --bg: #0f1115;
-    --panel: #171a21;
-    --border: #2a2f3a;
-    --text: #e4e7ec;
-    --muted: #8b93a1;
-    --accent: #4f8cff;
-    --err: #e5534b;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    padding: 2rem 1rem;
-  }
-  main { width: 100%; max-width: 640px; }
-  h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
-  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 1.25rem;
-    margin-bottom: 1.25rem;
-  }
-  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
-  input[type="text"] {
-    width: 100%;
-    padding: 0.6rem 0.75rem;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.85rem;
-  }
-  input:focus { outline: none; border-color: var(--accent); }
-  button, a.button {
-    display: inline-block;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 0.6rem 1.4rem;
-    font-size: 0.95rem;
-    cursor: pointer;
-    text-decoration: none;
-  }
-  .row { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
-  .row input { flex: 1; }
-  .row button { white-space: nowrap; }
-  .msg { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.9rem; display: none; word-break: break-word; }
-  .msg.err { display: block; background: rgba(229, 83, 75, 0.12); border: 1px solid var(--err); color: #ffb4af; }
   .file-card { display: none; margin-top: 1.25rem; }
   .file-card table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-  .file-card td { padding: 0.45rem 0; border-bottom: 1px solid var(--border); }
-  .file-card td:first-child { color: var(--muted); width: 7rem; }
+  .file-card td { padding: 0.5rem 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .file-card td:first-child { color: var(--muted); width: 6rem; }
   .file-card tr:last-child td { border-bottom: none; }
   .file-card .name { word-break: break-all; }
-  .actions { margin-top: 1rem; text-align: right; }
+  .actions { margin-top: 1rem; }
+  .actions a.button { width: 100%; }
+  @media (min-width: 600px) {
+    .actions { text-align: right; }
+    .actions a.button { width: auto; }
+  }
 </style>
 </head>
 <body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/upload"><span class="dot"></span>fileshare</a>
+    <nav class="nav">
+      <a href="/upload">Upload</a>
+      <a href="/download" class="active">Download</a>
+      <a href="/admin">Admin</a>
+    </nav>
+  </div>
+</header>
+
 <main>
-  <h1>fileshare</h1>
+  <h1 class="page-title">Download</h1>
   <p class="sub">Download a shared file.</p>
 
   <div class="panel">
     <label for="id-input">Paste a share link or file ID</label>
     <div class="row">
-      <input type="text" id="id-input" placeholder="https://…/download?id=… or a UUID" autocomplete="off">
+      <input type="text" id="id-input" class="mono" placeholder="https://…/download?id=… or a UUID" autocomplete="off">
       <button id="lookup-btn" type="button">Look up</button>
     </div>
 
@@ -91,9 +50,12 @@
         <tr><td>Name</td><td class="name" id="f-name">—</td></tr>
         <tr><td>Size</td><td id="f-size">—</td></tr>
         <tr><td>Uploaded</td><td id="f-date">—</td></tr>
+        <tr id="row-expires" style="display:none;"><td>Available until</td><td id="f-expires">—</td></tr>
+        <tr id="row-downloads" style="display:none;"><td>Downloads left</td><td id="f-downloads">—</td></tr>
+        <tr id="row-reboot" style="display:none;"><td>Note</td><td id="f-reboot">Removed when the server restarts</td></tr>
       </table>
       <div class="actions">
-        <a class="button" id="download-btn" href="#">Download</a>
+        <a class="button" id="download-btn" href="#">Download file</a>
       </div>
     </div>
   </div>
@@ -136,6 +98,12 @@
     return bytes.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
   }
 
+  var rowExpires = document.getElementById('row-expires');
+  var fExpires = document.getElementById('f-expires');
+  var rowDownloads = document.getElementById('row-downloads');
+  var fDownloads = document.getElementById('f-downloads');
+  var rowReboot = document.getElementById('row-reboot');
+
   function showError(text) {
     msg.className = 'msg err';
     msg.textContent = text;
@@ -162,6 +130,17 @@
         fSize.textContent = humanSize(info.size) + ' (' + info.size.toLocaleString() + ' bytes)';
         var d = new Date(info.uploadedAt);
         fDate.textContent = isNaN(d) ? info.uploadedAt : d.toLocaleString();
+        if (info.expiresAt) {
+          var ed = new Date(info.expiresAt);
+          fExpires.textContent = isNaN(ed) ? info.expiresAt : ed.toLocaleString();
+          rowExpires.style.display = '';
+        } else { rowExpires.style.display = 'none'; }
+        if (info.maxDownloads) {
+          var left = Math.max(0, info.maxDownloads - (info.downloads || 0));
+          fDownloads.textContent = left + ' of ' + info.maxDownloads;
+          rowDownloads.style.display = '';
+        } else { rowDownloads.style.display = 'none'; }
+        rowReboot.style.display = info.deleteOnReboot ? '' : 'none';
         downloadBtn.href = '/api/download/' + encodeURIComponent(info.id);
         downloadBtn.setAttribute('download', info.name);
         fileCard.style.display = 'block';

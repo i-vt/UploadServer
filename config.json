@@ -1,0 +1,10 @@
+{
+  "port": 3000,
+  "maxFileSizeGB": 50,
+  "sweepIntervalSeconds": 30,
+  "uploads": {
+    "deleteOnReboot": true,
+    "ttlMinutes": 0,
+    "maxDownloads": 0
+  }
+}

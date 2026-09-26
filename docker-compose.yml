@@ -1,0 +1,22 @@
+# Convenience only — the plain `docker run` commands in setup.sh / README
+# work without docker-compose.
+services:
+  fileshare:
+    build: .
+    container_name: fileshare
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Uncomment to keep stable keys across restarts (otherwise they are
+      # regenerated on every container start and printed to the logs):
+      # ADMIN_KEY: "change-me-64-hex-chars"
+      # UPLOAD_KEY: "change-me-64-hex-chars"
+      PORT: "3000"
+    volumes:
+      - fileshare-data:/data
+      # Uncomment to edit settings without rebuilding the image:
+      # - ./config.json:/app/config.json:ro
+
+volumes:
+  fileshare-data:

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fileshare — admin</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .key-out {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.9rem;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+  .chip {
+    min-height: 40px;
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .masked { letter-spacing: 0.05em; }
+  @media (min-width: 600px) {
+    .key-out { flex-direction: row; }
+    .key-out input { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/upload"><span class="dot"></span>fileshare</a>
+    <nav class="nav">
+      <a href="/upload">Upload</a>
+      <a href="/download">Download</a>
+      <a href="/admin" class="active">Admin</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <h1 class="page-title">Admin console</h1>
+  <p class="sub">Manage upload keys and stored files.</p>
+
+  <!-- login -->
+  <div class="panel" id="login-panel">
+    <label for="admin-key">Admin key (from the server logs or <code>/tmp/FileUploadKeys.txt</code>)</label>
+    <div class="row">
+      <input type="password" id="admin-key" class="mono" autocomplete="off" placeholder="paste the admin key">
+      <button id="login-btn" type="button">Sign in</button>
+    </div>
+    <p class="hint">Kept in this tab only (sessionStorage) — closing the tab signs you out.</p>
+    <div class="msg" id="login-msg"></div>
+  </div>
+
+  <!-- console -->
+  <div id="console" style="display:none;">
+
+    <div class="panel">
+      <p class="panel-title">Overview</p>
+      <div class="grid">
+        <div class="stat"><div class="num" id="st-files">—</div><div class="lbl">Files stored</div></div>
+        <div class="stat"><div class="num" id="st-size">—</div><div class="lbl">Total size</div></div>
+        <div class="stat"><div class="num" id="st-keys">—</div><div class="lbl">Active temp keys</div></div>
+      </div>
+      <div style="margin-top:1rem;">
+        <label>Master upload key (unlimited uses)</label>
+        <div class="row">
+          <input type="text" id="master-key" class="mono masked" readonly>
+          <button class="ghost small" id="reveal-btn" type="button">Show</button>
+          <button class="ghost small" id="copy-master-btn" type="button">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">Generate a temporary key</p>
+      <label for="uses">Number of uses</label>
+      <input type="number" id="uses" min="1" max="100000" value="1" inputmode="numeric">
+      <div class="chips" id="chips">
+        <button class="chip active" data-uses="1" type="button">1 use</button>
+        <button class="chip" data-uses="2" type="button">2 uses</button>
+        <button class="chip" data-uses="5" type="button">5 uses</button>
+        <button class="chip" data-uses="10" type="button">10 uses</button>
+      </div>
+      <div style="margin-top:0.9rem;">
+        <button id="gen-btn" type="button">Generate key</button>
+      </div>
+      <div class="key-out" id="key-out" style="display:none;">
+        <input type="text" id="new-key" class="mono" readonly>
+        <button class="small" id="copy-new-btn" type="button">Copy key</button>
+      </div>
+      <p class="hint">One use is consumed per completed upload. A key with 0 remaining uses stops working automatically.</p>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">Temporary keys</p>
+      <ul class="item-list" id="key-list"></ul>
+      <p class="empty" id="keys-empty">No active temporary keys.</p>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">Stored files</p>
+      <ul class="item-list" id="file-list"></ul>
+      <p class="empty" id="files-empty">No files stored.</p>
+    </div>
+
+    <div style="text-align:center; margin-top:1rem;">
+      <button class="ghost small" id="logout-btn" type="button">Sign out</button>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var adminKey = '';
+  var masterKey = '';
+  var masterVisible = false;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var loginPanel = $('login-panel');
+  var consoleEl = $('console');
+  var keyInput = $('admin-key');
+
+  function humanSize(bytes) {
+    if (!isFinite(bytes)) return '?';
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = 0;
+    while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+    return bytes.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+  }
+
+  function fmtDate(iso) {
+    var d = new Date(iso);
+    return isNaN(d) ? (iso || '—') : d.toLocaleString();
+  }
+
+  function copyText(text, btn) {
+    var done = function () {
+      if (!btn) return;
+      var orig = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(function () { btn.textContent = orig; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, done);
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+      document.body.removeChild(ta);
+      done();
+    }
+  }
+
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers, { 'x-admin-key': adminKey });
+    if (opts.body) opts.headers['Content-Type'] = 'application/json';
+    return fetch(path, opts).then(function (res) {
+      if (res.status === 403) { signOut(); throw new Error('forbidden'); }
+      return res.json().then(function (body) {
+        if (!res.ok) throw new Error(body && body.error ? body.error : ('HTTP ' + res.status));
+        return body;
+      });
+    });
+  }
+
+  function showLoginError(text) {
+    var m = $('login-msg');
+    m.className = 'msg err';
+    m.textContent = text;
+  }
+
+  function signIn(key) {
+    adminKey = key;
+    api('/api/admin/overview').then(function (ov) {
+      loginPanel.style.display = 'none';
+      consoleEl.style.display = 'block';
+      masterKey = ov.uploadKey;
+      renderMasterKey();
+      try { sessionStorage.setItem('fileshare.adminKey', key); } catch (e) { /* ignore */ }
+      refreshAll();
+    }).catch(function () {
+      adminKey = '';
+      showLoginError('Invalid admin key, or the server is unreachable.');
+    });
+  }
+
+  function signOut() {
+    adminKey = '';
+    try { sessionStorage.removeItem('fileshare.adminKey'); } catch (e) { /* ignore */ }
+    consoleEl.style.display = 'none';
+    loginPanel.style.display = 'block';
+    keyInput.value = '';
+  }
+
+  function renderMasterKey() {
+    $('master-key').value = masterVisible ? masterKey : '•'.repeat(24) + masterKey.slice(-6);
+    $('reveal-btn').textContent = masterVisible ? 'Hide' : 'Show';
+  }
+
+  function refreshAll() {
+    api('/api/admin/overview').then(function (ov) {
+      $('st-files').textContent = ov.fileCount;
+      $('st-size').textContent = humanSize(ov.totalSize);
+      $('st-keys').textContent = ov.tempKeyCount;
+    }).catch(function () {});
+    refreshKeys();
+    refreshFiles();
+  }
+
+  function refreshKeys() {
+    api('/api/admin/keys').then(function (data) {
+      var list = $('key-list');
+      list.innerHTML = '';
+      $('keys-empty').style.display = data.keys.length ? 'none' : 'block';
+      data.keys.forEach(function (k) {
+        var li = document.createElement('li');
+        li.className = 'item';
+
+        var grow = document.createElement('div');
+        grow.className = 'grow mono';
+        grow.textContent = k.key;
+
+        var meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = 'created ' + fmtDate(k.createdAt) +
+          (k.lastUsedAt ? ' · last used ' + fmtDate(k.lastUsedAt) : ' · unused');
+
+        var badge = document.createElement('span');
+        badge.className = 'badge ok';
+        badge.textContent = k.usesLeft + (k.usesLeft === 1 ? ' use' : ' uses') + ' left';
+
+        var actions = document.createElement('div');
+        actions.className = 'actions';
+
+        var copyBtn = document.createElement('button');
+        copyBtn.className = 'ghost small';
+        copyBtn.type = 'button';
+        copyBtn.textContent = 'Copy';
+        copyBtn.addEventListener('click', function () { copyText(k.key, copyBtn); });
+
+        var delBtn = document.createElement('button');
+        delBtn.className = 'danger small';
+        delBtn.type = 'button';
+        delBtn.textContent = 'Revoke';
+        delBtn.addEventListener('click', function () {
+          if (!confirm('Revoke this key? It will stop working immediately.')) return;
+          api('/api/admin/keys/' + encodeURIComponent(k.key), { method: 'DELETE' })
+            .then(refreshAll)
+            .catch(function (e) { alert(e.message); });
+        });
+
+        actions.appendChild(copyBtn);
+        actions.appendChild(delBtn);
+
+        var left = document.createElement('div');
+        left.className = 'grow';
+        left.appendChild(grow);
+        left.appendChild(meta);
+
+        li.appendChild(left);
+        li.appendChild(badge);
+        li.appendChild(actions);
+        list.appendChild(li);
+      });
+    }).catch(function () {});
+  }
+
+  function refreshFiles() {
+    api('/api/admin/files').then(function (data) {
+      var list = $('file-list');
+      list.innerHTML = '';
+      $('files-empty').style.display = data.files.length ? 'none' : 'block';
+      data.files.forEach(function (f) {
+        var li = document.createElement('li');
+        li.className = 'item';
+
+        var left = document.createElement('div');
+        left.className = 'grow';
+
+        var name = document.createElement('div');
+        name.textContent = f.name;
+
+        var meta = document.createElement('div');
+        meta.className = 'meta';
+        var bits = [humanSize(f.size), fmtDate(f.uploadedAt)];
+        if (f.expiresAt) bits.push('expires ' + fmtDate(f.expiresAt));
+        if (f.maxDownloads) bits.push('downloads ' + (f.downloads || 0) + '/' + f.maxDownloads);
+        if (f.deleteOnReboot) bits.push('deleted on restart');
+        meta.textContent = bits.join(' · ');
+
+        left.appendChild(name);
+        left.appendChild(meta);
+
+        var actions = document.createElement('div');
+        actions.className = 'actions';
+
+        var linkBtn = document.createElement('button');
+        linkBtn.className = 'ghost small';
+        linkBtn.type = 'button';
+        linkBtn.textContent = 'Copy link';
+        linkBtn.addEventListener('click', function () {
+          copyText(location.origin + '/download?id=' + f.id, linkBtn);
+        });
+
+        var delBtn = document.createElement('button');
+        delBtn.className = 'danger small';
+        delBtn.type = 'button';
+        delBtn.textContent = 'Delete';
+        delBtn.addEventListener('click', function () {
+          if (!confirm('Delete "' + f.name + '"? The file is securely overwritten and removed from disk.')) return;
+          api('/api/admin/files/' + encodeURIComponent(f.id), { method: 'DELETE' })
+            .then(refreshAll)
+            .catch(function (e) { alert(e.message); });
+        });
+
+        actions.appendChild(linkBtn);
+        actions.appendChild(delBtn);
+
+        li.appendChild(left);
+        li.appendChild(actions);
+        list.appendChild(li);
+      });
+    }).catch(function () {});
+  }
+
+  // --- events ---------------------------------------------------------------
+
+  $('login-btn').addEventListener('click', function () {
+    var key = keyInput.value.trim();
+    if (!key) { showLoginError('Enter the admin key.'); return; }
+    signIn(key);
+  });
+  keyInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') $('login-btn').click();
+  });
+
+  $('logout-btn').addEventListener('click', signOut);
+
+  $('reveal-btn').addEventListener('click', function () {
+    masterVisible = !masterVisible;
+    renderMasterKey();
+  });
+  $('copy-master-btn').addEventListener('click', function () {
+    copyText(masterKey, $('copy-master-btn'));
+  });
+
+  var usesInput = $('uses');
+  var chips = $('chips');
+  chips.addEventListener('click', function (e) {
+    var btn = e.target.closest('.chip');
+    if (!btn) return;
+    usesInput.value = btn.getAttribute('data-uses');
+    syncChips();
+  });
+  usesInput.addEventListener('input', syncChips);
+  function syncChips() {
+    var val = usesInput.value.trim();
+    chips.querySelectorAll('.chip').forEach(function (c) {
+      c.classList.toggle('active', c.getAttribute('data-uses') === val);
+    });
+  }
+
+  $('gen-btn').addEventListener('click', function () {
+    var uses = parseInt(usesInput.value, 10);
+    if (!Number.isInteger(uses) || uses < 1) { alert('Enter a valid number of uses (1 or more).'); return; }
+    $('gen-btn').disabled = true;
+    api('/api/admin/keys', { method: 'POST', body: JSON.stringify({ uses: uses }) })
+      .then(function (data) {
+        $('new-key').value = data.key;
+        $('key-out').style.display = 'flex';
+        copyText(data.key, $('copy-new-btn'));
+        refreshAll();
+      })
+      .catch(function (e) { alert(e.message); })
+      .finally(function () { $('gen-btn').disabled = false; });
+  });
+
+  $('copy-new-btn').addEventListener('click', function () {
+    copyText($('new-key').value, $('copy-new-btn'));
+  });
+
+  // Auto sign-in if the tab already has a key.
+  try {
+    var saved = sessionStorage.getItem('fileshare.adminKey');
+    if (saved) { keyInput.value = saved; signIn(saved); }
+  } catch (e) { /* ignore */ }
+})();
+</script>
+</body>
+</html>

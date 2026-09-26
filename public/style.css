@@ -1,0 +1,245 @@
+/* fileshare — shared styles (mobile-first) */
+
+:root {
+  --bg: #0d1017;
+  --panel: #161b26;
+  --panel-2: #1c2230;
+  --border: #2a3142;
+  --text: #e8ebf2;
+  --muted: #939db0;
+  --accent: #4f8cff;
+  --accent-hover: #6ba0ff;
+  --ok: #34c07c;
+  --err: #e5534b;
+  --warn: #e5a54b;
+  --radius: 12px;
+  --tap: 48px; /* minimum touch target */
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* ---- header / nav ------------------------------------------------------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(13, 16, 23, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+
+.site-header .wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--text);
+  text-decoration: none;
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brand .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+
+.nav {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.nav a:hover { color: var(--text); background: var(--panel-2); }
+.nav a.active { color: var(--text); background: var(--panel-2); }
+
+/* ---- layout ------------------------------------------------------------- */
+
+main {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+}
+
+.page-title { font-size: 1.35rem; margin: 0.5rem 0 0.15rem; }
+.sub { color: var(--muted); font-size: 0.92rem; margin: 0 0 1.25rem; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.panel-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+}
+
+/* ---- forms -------------------------------------------------------------- */
+
+label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
+
+input[type="text"], input[type="password"], input[type="number"], select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.6rem 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 16px; /* >=16px prevents iOS auto-zoom on focus */
+}
+
+input.mono, .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.18); }
+
+.hint { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+
+/* ---- buttons ------------------------------------------------------------ */
+
+button, a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: var(--tap);
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s;
+  touch-action: manipulation;
+}
+
+button:hover, a.button:hover { background: var(--accent-hover); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+button.ghost {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+button.ghost:hover { border-color: var(--accent); }
+
+button.danger { background: transparent; color: var(--err); border: 1px solid var(--err); }
+button.danger:hover { background: rgba(229, 83, 75, 0.12); }
+
+button.small, a.button.small { min-height: 40px; padding: 0.4rem 0.8rem; font-size: 0.85rem; }
+
+/* ---- rows / grids ------------------------------------------------------- */
+
+.row { display: flex; gap: 0.5rem; }
+.row > input { flex: 1; min-width: 0; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.stat {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.8rem 0.9rem;
+}
+.stat .num { font-size: 1.25rem; font-weight: 700; }
+.stat .lbl { font-size: 0.78rem; color: var(--muted); }
+
+/* ---- messages ----------------------------------------------------------- */
+
+.msg { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.9rem; display: none; word-break: break-word; }
+.msg.err { display: block; background: rgba(229, 83, 75, 0.12); border: 1px solid var(--err); color: #ffb4af; }
+.msg.ok { display: block; background: rgba(52, 192, 124, 0.1); border: 1px solid var(--ok); color: #9fe8c5; }
+
+/* ---- lists / cards ------------------------------------------------------ */
+
+.item-list { list-style: none; margin: 0; padding: 0; }
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+.item:last-child { border-bottom: none; }
+.item .grow { flex: 1 1 12rem; min-width: 0; word-break: break-all; }
+.item .meta { color: var(--muted); font-size: 0.8rem; }
+.item .actions { display: flex; gap: 0.4rem; margin-left: auto; }
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.badge.ok { color: #9fe8c5; border-color: var(--ok); }
+
+.empty { color: var(--muted); font-size: 0.9rem; padding: 0.75rem 0; text-align: center; }
+
+/* ---- larger screens ----------------------------------------------------- */
+
+@media (min-width: 600px) {
+  .panel { padding: 1.35rem; }
+  main { padding-top: 1.75rem; }
+  .page-title { font-size: 1.5rem; }
+}

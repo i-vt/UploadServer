@@ -4,115 +4,123 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>fileshare — upload</title>
+<link rel="stylesheet" href="/style.css">
 <style>
-  :root {
-    --bg: #0f1115;
-    --panel: #171a21;
-    --border: #2a2f3a;
-    --text: #e4e7ec;
-    --muted: #8b93a1;
-    --accent: #4f8cff;
-    --ok: #34c07c;
-    --err: #e5534b;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    padding: 2rem 1rem;
-  }
-  main { width: 100%; max-width: 640px; }
-  h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
-  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 1.25rem;
-    margin-bottom: 1.25rem;
-  }
-  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
-  input[type="text"], input[type="password"] {
-    width: 100%;
-    padding: 0.6rem 0.75rem;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.85rem;
-  }
-  input:focus { outline: none; border-color: var(--accent); }
   #dropzone {
     border: 2px dashed var(--border);
-    border-radius: 10px;
-    padding: 3rem 1rem;
+    border-radius: var(--radius);
+    padding: 2.5rem 1rem;
     text-align: center;
     color: var(--muted);
     cursor: pointer;
     transition: border-color .15s, background .15s;
+    -webkit-tap-highlight-color: transparent;
   }
-  #dropzone.over { border-color: var(--accent); background: rgba(79, 140, 255, 0.06); color: var(--text); }
+  #dropzone.over { border-color: var(--accent); background: rgba(79, 140, 255, 0.07); color: var(--text); }
   #dropzone strong { color: var(--text); }
-  .file-info { margin-top: 0.75rem; font-size: 0.9rem; color: var(--text); display: none; }
-  button {
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 0.6rem 1.4rem;
-    font-size: 0.95rem;
-    cursor: pointer;
-  }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #dropzone .dz-icon { font-size: 1.6rem; display: block; margin-bottom: 0.4rem; }
+  .file-info { margin-top: 0.75rem; font-size: 0.9rem; display: none; word-break: break-all; }
+  .upload-action { margin-top: 1rem; }
+  .upload-action button { width: 100%; }
   .progress-wrap { margin-top: 1rem; display: none; }
   .progress-track {
-    height: 10px;
+    height: 12px;
     background: var(--bg);
-    border-radius: 5px;
+    border-radius: 6px;
     overflow: hidden;
     border: 1px solid var(--border);
   }
-  .progress-bar { height: 100%; width: 0%; background: var(--accent); transition: width .15s linear; }
-  .progress-stats { margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted); display: flex; justify-content: space-between; }
-  .msg { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.9rem; display: none; word-break: break-word; }
-  .msg.err { display: block; background: rgba(229, 83, 75, 0.12); border: 1px solid var(--err); color: #ffb4af; }
-  .msg.ok { display: block; background: rgba(52, 192, 124, 0.1); border: 1px solid var(--ok); color: #9fe8c5; }
-  .share-row { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
-  .share-row input { flex: 1; }
-  .share-row button { white-space: nowrap; }
-  #session-list { list-style: none; margin: 0.75rem 0 0; padding: 0; font-size: 0.85rem; }
-  #session-list li { padding: 0.4rem 0; border-bottom: 1px solid var(--border); word-break: break-all; }
+  .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #7db0ff); transition: width .15s linear; }
+  .progress-stats { margin-top: 0.5rem; font-size: 0.82rem; color: var(--muted); display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+  .share-row { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.75rem; }
+  #session-list { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; }
+  #session-list li { padding: 0.5rem 0; border-bottom: 1px solid var(--border); word-break: break-all; }
   #session-list li:last-child { border-bottom: none; }
   #session-list a { color: var(--accent); text-decoration: none; }
   #session-list a:hover { text-decoration: underline; }
-  .hint { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+
+  /* options */
+  .opt-check { display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; margin-bottom: 1rem; }
+  .opt-check input[type="checkbox"] { width: 22px; height: 22px; margin-top: 0.1rem; accent-color: var(--accent); flex-shrink: 0; }
+  .opt-check .opt-label { font-size: 0.92rem; color: var(--text); }
+  .opt-check .opt-sub { font-size: 0.8rem; color: var(--muted); }
+  .opt-grid { display: grid; grid-template-columns: 1fr; gap: 0.9rem; }
+  #ttl-custom-row { display: none; margin-top: 0.5rem; }
+  #ttl-custom-row.show { display: block; }
+  @media (min-width: 600px) {
+    .share-row { flex-direction: row; }
+    .share-row input { flex: 1; }
+    .upload-action { text-align: right; }
+    .upload-action button { width: auto; }
+    .opt-grid { grid-template-columns: 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/upload"><span class="dot"></span>fileshare</a>
+    <nav class="nav">
+      <a href="/upload" class="active">Upload</a>
+      <a href="/download">Download</a>
+      <a href="/admin">Admin</a>
+    </nav>
+  </div>
+</header>
+
 <main>
-  <h1>fileshare</h1>
+  <h1 class="page-title">Share a file</h1>
   <p class="sub">Uploads up to 50 GB supported.</p>
 
   <div class="panel">
-    <label for="key">Upload key (64 characters, from <code>/tmp/FileUploadKeys.txt</code> on the server)</label>
-    <input type="password" id="key" maxlength="64" autocomplete="off" placeholder="paste the upload key">
+    <label for="key">Upload key (master or temporary)</label>
+    <input type="password" id="key" class="mono" autocomplete="off" placeholder="paste an upload key">
     <p class="hint">The key is remembered in this browser (localStorage).</p>
   </div>
 
   <div class="panel">
     <div id="dropzone">
+      <span class="dz-icon">⬆</span>
       <p><strong>Drag &amp; drop a file here</strong></p>
-      <p>or click to choose a file</p>
+      <p>or tap to choose a file</p>
       <input type="file" id="file" hidden>
     </div>
     <p class="file-info" id="file-info"></p>
-    <div style="margin-top:1rem; text-align:right;">
+
+    <div class="panel" style="background: var(--panel-2); margin-top: 1rem; margin-bottom: 0;">
+      <p class="panel-title">Retention</p>
+
+      <label class="opt-check" for="opt-reboot">
+        <input type="checkbox" id="opt-reboot" checked>
+        <span>
+          <span class="opt-label">Delete when the server restarts</span><br>
+          <span class="opt-sub">The file is wiped on reboot/restart. On by default.</span>
+        </span>
+      </label>
+
+      <div class="opt-grid">
+        <div>
+          <label for="opt-ttl">Keep the file for</label>
+          <select id="opt-ttl">
+            <option value="0">Forever</option>
+            <option value="15">15 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="1440">1 day</option>
+            <option value="10080">7 days</option>
+            <option value="custom">Custom…</option>
+          </select>
+          <div id="ttl-custom-row">
+            <input type="number" id="opt-ttl-custom" min="1" max="525600" inputmode="numeric" placeholder="minutes">
+          </div>
+        </div>
+        <div>
+          <label for="opt-maxdl">Remove after N downloads</label>
+          <input type="number" id="opt-maxdl" min="0" max="1000000" inputmode="numeric" placeholder="0 = unlimited">
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-action">
       <button id="upload-btn" disabled>Upload</button>
     </div>
 
@@ -128,13 +136,13 @@
     <div class="msg" id="msg"></div>
 
     <div class="share-row" id="share-row" style="display:none;">
-      <input type="text" id="share-link" readonly>
-      <button id="copy-btn" type="button">Copy</button>
+      <input type="text" id="share-link" class="mono" readonly>
+      <button id="copy-btn" type="button">Copy link</button>
     </div>
   </div>
 
   <div class="panel" id="session-panel" style="display:none;">
-    <label>Uploaded this session</label>
+    <p class="panel-title">Uploaded this session</p>
     <ul id="session-list"></ul>
   </div>
 </main>
@@ -159,9 +167,39 @@
   var copyBtn = document.getElementById('copy-btn');
   var sessionPanel = document.getElementById('session-panel');
   var sessionList = document.getElementById('session-list');
+  var optReboot = document.getElementById('opt-reboot');
+  var optTtl = document.getElementById('opt-ttl');
+  var optTtlCustomRow = document.getElementById('ttl-custom-row');
+  var optTtlCustom = document.getElementById('opt-ttl-custom');
+  var optMaxDl = document.getElementById('opt-maxdl');
 
   var selectedFile = null;
   var uploading = false;
+
+  // --- server-side defaults for the options form ------------------------------
+  fetch('/api/upload-defaults').then(function (r) { return r.json(); }).then(function (d) {
+    optReboot.checked = !!d.deleteOnReboot;
+    if (d.ttlMinutes > 0) {
+      var match = Array.prototype.find.call(optTtl.options, function (o) { return o.value === String(d.ttlMinutes); });
+      if (match) { optTtl.value = match.value; }
+      else { optTtl.value = 'custom'; optTtlCustom.value = d.ttlMinutes; }
+      syncTtlCustom();
+    }
+    if (d.maxDownloads > 0) optMaxDl.value = d.maxDownloads;
+  }).catch(function () { /* defaults are fine */ });
+
+  optTtl.addEventListener('change', syncTtlCustom);
+  function syncTtlCustom() {
+    optTtlCustomRow.classList.toggle('show', optTtl.value === 'custom');
+  }
+
+  function ttlMinutes() {
+    if (optTtl.value === 'custom') {
+      var v = parseInt(optTtlCustom.value, 10);
+      return (Number.isInteger(v) && v > 0) ? v : 0;
+    }
+    return parseInt(optTtl.value, 10) || 0;
+  }
 
   // --- key persistence -----------------------------------------------------
   try {
@@ -209,7 +247,7 @@
   }
 
   function refresh() {
-    uploadBtn.disabled = uploading || !selectedFile || keyInput.value.trim().length !== 64;
+    uploadBtn.disabled = uploading || !selectedFile || keyInput.value.trim().length === 0;
   }
 
   // --- helpers ---------------------------------------------------------------
@@ -238,7 +276,7 @@
   uploadBtn.addEventListener('click', function () {
     if (!selectedFile || uploading) return;
     var key = keyInput.value.trim();
-    if (key.length !== 64) { showMsg('err', 'The upload key must be exactly 64 characters.'); return; }
+    if (!key) { showMsg('err', 'Enter an upload key first.'); return; }
 
     uploading = true;
     refresh();
@@ -251,6 +289,11 @@
     statEta.textContent = 'ETA —';
 
     var fd = new FormData();
+    // Retention fields first — the server reads them before/at finish.
+    fd.append('deleteOnReboot', optReboot.checked ? '1' : '0');
+    fd.append('ttlMinutes', String(ttlMinutes()));
+    var maxDl = parseInt(optMaxDl.value, 10);
+    fd.append('maxDownloads', (Number.isInteger(maxDl) && maxDl > 0) ? String(maxDl) : '0');
     fd.append('file', selectedFile, selectedFile.name);
 
     var xhr = new XMLHttpRequest();
@@ -320,7 +363,7 @@
     shareLink.setSelectionRange(0, shareLink.value.length);
     var done = function () {
       copyBtn.textContent = 'Copied';
-      setTimeout(function () { copyBtn.textContent = 'Copy'; }, 1500);
+      setTimeout(function () { copyBtn.textContent = 'Copy link'; }, 1500);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(shareLink.value).then(done, function () { document.execCommand('copy'); done(); });
